@@ -3,7 +3,11 @@ import httpx
 import asyncio
 import re
 from aiogram import Bot
-from config import BOT_TOKEN, CHANNEL_ID, DEEPSEEK_KEY
+
+# --- ТВОЙ КЛЮЧ ВСТАВЛЕН ПРЯМО СЮДА ---
+DEEPSEEK_KEY = "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"
+BOT_TOKEN = "8948057154:AAEKXLKi4i5i7x_1dh1kd_JBc7lAMUBVi3I"
+CHANNEL_ID = "-1004456666498"
 
 bot = Bot(token=BOT_TOKEN)
 
@@ -33,7 +37,7 @@ def get_image(entry):
     return None
 
 async def rewrite_news(title, text):
-    if not DEEPSEEK_KEY or len(text) < 80:
+    if len(text) < 80:
         return f"{title}\n\n{text[:300]}"
 
     prompt = f"""
