@@ -13,6 +13,8 @@ RSS_SOURCES = [
     "https://tass.ru/rss/v2/economic.xml"
 ]
 
+published_links = set()
+
 def get_image(entry):
     if hasattr(entry, 'media_content') and entry.media_content:
         return entry.media_content[0]['url']
@@ -30,41 +32,67 @@ def get_image(entry):
             return match.group(1)
     return None
 
-async def rewrite_news(title, text):
+async def rewrite_news(title, text, url):
     if not DEEPSEEK_KEY or len(text) < 80:
-        return f"{title}\n\n{text[:300]}..."
-    prompt = f"Перепиши эту новость кратко, нейтрально, своими словами:\n{title}\n{text[:600]}"
+        return f"{title}\n\n{text[:300]}\n\nИсточник: {url}"
+
+    prompt = f"""
+Ты — автор новостного канала. Напиши эту новость С НУЛЯ, полностью своими словами.
+
+Задача:
+- Передай суть события простым, понятным языком.
+- Измени структуру, порядок фактов, формулировки.
+- Добавь логику: что произошло, почему это важно, что будет дальше.
+- Убери всё, что напоминает оригинал.
+- Текст должен быть новым, не похожим на исходник.
+- Факты сохрани (даты, имена, цифры).
+- В конце добавь: Источник: {url}
+
+Заголовок: {title}
+Исходный текст: {text[:1000]}
+"""
+
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             resp = await client.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={"Authorization": f"Bearer {DEEPSEEK_KEY}"},
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_KEY}",
+                    "HTTP-Referer": "https://t.me/your_bot",
+                    "X-Title": "NewsBot"
+                },
                 json={
-                    "model": "deepseek-chat",
+                    "model": "deepseek/deepseek-chat:free",
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 250
+                    "max_tokens": 500
                 }
             )
             return resp.json()["choices"][0]["message"]["content"].strip()
-        except:
-            return f"{title}\n\n{text[:250]}..."
+        except Exception as e:
+            print(f"Ошибка рерайта: {e}")
+            return f"{title}\n\n{text[:300]}\n\nИсточник: {url}"
 
 async def check_feeds():
+    global published_links
     for url in RSS_SOURCES:
         feed = feedparser.parse(url)
         for entry in feed.entries[:5]:
+            link = entry.link
+            if link in published_links:
+                continue
             image = get_image(entry)
             if not image:
                 continue
             title = entry.title
             desc = entry.get("summary", "")
-            text = await rewrite_news(title, desc)
+            text = await rewrite_news(title, desc, url)
             try:
                 await bot.send_photo(
                     chat_id=CHANNEL_ID,
                     photo=image,
                     caption=text
                 )
+                published_links.add(link)
                 await asyncio.sleep(2)
             except Exception as e:
                 print(f"Ошибка отправки: {e}")
