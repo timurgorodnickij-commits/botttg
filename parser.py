@@ -4,7 +4,7 @@ import asyncio
 import re
 from aiogram import Bot
 
-# --- ТВОЙ КЛЮЧ ВСТАВЛЕН ПРЯМО СЮДА ---
+# --- ТВОЙ КЛЮЧ OpenRouter ---
 DEEPSEEK_KEY = "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"
 BOT_TOKEN = "8948057154:AAEKXLKi4i5i7x_1dh1kd_JBc7lAMUBVi3I"
 CHANNEL_ID = "-1004456666498"
@@ -37,18 +37,15 @@ def get_image(entry):
     return None
 
 async def rewrite_news(title, text):
-    if len(text) < 80:
-        return f"{title}\n\n{text[:300]}"
-
     prompt = f"""
 Ты — автор новостного канала. Напиши эту новость С НУЛЯ, полностью своими словами.
 
-Задача:
+Требования:
+- Минимум 100 слов.
 - Передай суть события простым, понятным языком.
 - Измени структуру, порядок фактов, формулировки.
 - Добавь логику: что произошло, почему это важно, что будет дальше.
 - Убери всё, что напоминает оригинал.
-- Текст должен быть новым, не похожим на исходник.
 - Факты сохрани (даты, имена, цифры).
 - Не добавляй ссылки, источники, пометки.
 
@@ -68,13 +65,16 @@ async def rewrite_news(title, text):
                 json={
                     "model": "deepseek/deepseek-chat:free",
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 500
+                    "max_tokens": 600
                 }
             )
-            return resp.json()["choices"][0]["message"]["content"].strip()
+            result = resp.json()["choices"][0]["message"]["content"].strip()
+            if len(result.split()) < 100:
+                return f"{title}\n\n{text[:500]}..."
+            return result
         except Exception as e:
             print(f"Ошибка рерайта: {e}")
-            return f"{title}\n\n{text[:300]}"
+            return f"{title}\n\n{text[:500]}..."
 
 async def check_feeds():
     global published_links
@@ -90,13 +90,10 @@ async def check_feeds():
             title = entry.title
             desc = entry.get("summary", "")
             text = await rewrite_news(title, desc)
-            try:
-                await bot.send_photo(
-                    chat_id=CHANNEL_ID,
-                    photo=image,
-                    caption=text
-                )
-                published_links.add(link)
-                await asyncio.sleep(2)
-            except Exception as e:
-                print(f"Ошибка отправки: {e}")
+            await bot.send_photo(
+                chat_id=CHANNEL_ID,
+                photo=image,
+                caption=text
+            )
+            published_links.add(link)
+            await asyncio.sleep(2)
