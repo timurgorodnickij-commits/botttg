@@ -32,9 +32,9 @@ def get_image(entry):
             return match.group(1)
     return None
 
-async def rewrite_news(title, text, url):
+async def rewrite_news(title, text):
     if not DEEPSEEK_KEY or len(text) < 80:
-        return f"{title}\n\n{text[:300]}\n\nИсточник: {url}"
+        return f"{title}\n\n{text[:300]}"
 
     prompt = f"""
 Ты — автор новостного канала. Напиши эту новость С НУЛЯ, полностью своими словами.
@@ -46,7 +46,7 @@ async def rewrite_news(title, text, url):
 - Убери всё, что напоминает оригинал.
 - Текст должен быть новым, не похожим на исходник.
 - Факты сохрани (даты, имена, цифры).
-- В конце добавь: Источник: {url}
+- Не добавляй ссылки, источники, пометки.
 
 Заголовок: {title}
 Исходный текст: {text[:1000]}
@@ -70,7 +70,7 @@ async def rewrite_news(title, text, url):
             return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
             print(f"Ошибка рерайта: {e}")
-            return f"{title}\n\n{text[:300]}\n\nИсточник: {url}"
+            return f"{title}\n\n{text[:300]}"
 
 async def check_feeds():
     global published_links
@@ -85,7 +85,7 @@ async def check_feeds():
                 continue
             title = entry.title
             desc = entry.get("summary", "")
-            text = await rewrite_news(title, desc, url)
+            text = await rewrite_news(title, desc)
             try:
                 await bot.send_photo(
                     chat_id=CHANNEL_ID,
